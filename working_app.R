@@ -1,4 +1,4 @@
-library(shiny)
+#Install and update before starting:
 
 #install.packages("installr")
 #library(installr)
@@ -8,116 +8,125 @@ library(shiny)
 #biocLite("flowCore")
 #install.packages("flowCore")
 
-library("flowCore")
-library("flowViz")
+library(shiny) #Load shiny library.
+library("flowCore") #Load flowCore library.
+library("flowViz")  #Load flowViz library.
 
-mydata = read.FCS('20160810ndbg/B01 control.fcs') # Read an FCS file. 6B pneumococcus.
-E <- exprs(mydata)
-mysample <- E[1:5000, 1:12]
-mymat <- as.data.frame(mysample)
+setwd("C:/Users/ninat/Documents/") #Set working directory.
 
-names(mymat)[names(mymat)=="FITC-A"] <- "FITC" #rename column
-names(mymat)[names(mymat)=="FSC-A"] <-"FSCA"
-names(mymat)[names(mymat)=="FSC-H"] <-"FSCH"
-names(mymat)[names(mymat)=="FSC-W"] <-"FSCW"
-names(mymat)[names(mymat)=="SSC-A"] <-"SSCA"
-names(mymat)[names(mymat)=="PE-A"] <-"PEA"
-names(mymat)[names(mymat)=="PE-Cy7-A"] <-"PECY7A"
-names(mymat)[names(mymat)=="Pacific Blue-A"] <-"PACBLUEA"
-names(mymat)[names(mymat)=="APC-A"] <-"APCA"
-names(mymat)[names(mymat)=="Alexa Fluor 700-A"] <-"ALEXAFLUOR"
-names(mymat)[names(mymat)=="APC-Cy7-A"] <-"APCCY7"
-names(mymat)[names(mymat)=="ALEXAFLUOR"] <-"ALEXA700"
+mydata = read.FCS('20160810ndbg/B01 control.fcs') # Read an FCS file.
 
+E <- exprs(mydata) #Create object with rows as cells and columns as channels. 
 
-library(shiny)
+mymat <- as.data.frame(E) #Coerce an object into a data frame.
+
+#Rename column names according to the experiment design.
+colnames(mymat) <- c("FCSA", "SSCA", "FL1A", "FL2A", "FL3A", "FL4A", "FSCH", "SSCH", "FL1H", "FL2H", "FL3H", "FL4H", "Width", "Time")
+
+x <- as.vector(colnames(mymat), mode = "character") #Coerce column names into a character vector.
+
+######################################################
+#Warning in charToRaw(enc2utf8(text)) :
+  #argument should be a character vector of length 1
+#all but the first element will be ignored
+######################################################
+
+#colnames(mymat) <- c('FCSA', 'SSCA', 'FL1A', 'FL2A', 'FL3A', 'FL4A', 'FSCH', 'SSCH', 'FL1H', 'FL2H', 'FL3H', 'FL4H', 'Width', 'Time')
+
+#setNames(data.frame(matrix(ncol = 14, nrow = 0)), c("FCSA", "SSCA", "FL1A", "FL2A", "FL3A", "FL4A", "FSCH", "SSCH", "FL1H", "FL2H", "FL3H", "FL4H", "Width", "Time"))
+
+#df <- data.frame(matrix(ncol = 14, nrow = 0))
+#x <- c("FCSA", "SSCA", "FL1A", "FL2A", "FL3A", "FL4A", "FSCH", "SSCH", "FL1H", "FL2H", "FL3H", "FL4H", "Width", "Time")
+#colnames(df) <- x
+
+#####
+#App#
+#####
 
 ui <- fluidPage(
   
   titlePanel("Gating Example"),
   
-  "Number of entries in the sample: ", nrow(mysample),
-  "\nNumber of channels in the sample: ", ncol(mysample),
-  "\nThe channel names are: ", names(mymat),
-  
   sidebarLayout(
     
-  sidebarPanel(
+    sidebarPanel(
+      
+      sliderInput(inputId = "numx",
+                  label = "Choose x-axis limit",
+                  value = c(200,900), min = 0, max = 1000000),
+      sliderInput(inputId = "numy",
+                  label = "Choose y-axis limit",
+                  value = c(200, 3000), min = 0, max = 1000000),
+      
+      selectInput('chan1', "Choose x-axis channel name", colnames(mymat)),
+      selectInput('chan2', "Choose y-axis channel name", colnames(mymat)),
+      selectInput('getchannel', "Choose the channel to rename", colnames(mymat)),
+      textInput('newchannel', "Type new channel name")
+      #actionButton("newplot", "New plot")
+    ),
     
-    #selectInput("dataset","Choose dataset",
-                  	#choices = names(mymat)),
-    sliderInput(inputId = "numx",
-                label = "Choose x-axis limit",
-                value = c(200,900), min = 0, max = 1000000),
-    sliderInput(inputId = "numy",
-                label = "Choose y-axis limit",
-                value = c(200, 3000), min = 0, max = 1000000),
+    mainPanel(
+      
+      p("Number of events in the sample: ", nrow(mymat)),
+      p("Number of channels in the sample: ", ncol(mymat)),
+      p("The channel names are: ", x, sep=", "),
+  
+      plotOutput("plot"),
+      plotOutput("hist")
+      
     
-    selectInput("chan", "Choose channel name", names(mymat)),
-    actionButton("newplot", "New plot")
-  ),
-  
-  mainPanel(
-    plotOutput("plot")
-  )
-  
-  
-  # mainPanel(
-  #   textOutput("channels")
-  # ),
-  # 
-  # mainPanel(
-  #   textOutput("newnames")
-  # )
- )  
+    )
+    
+    # mainPanel(
+    #   textOutput("channels")
+    # ),
+    # 
+    # mainPanel(
+    #   textOutput("newnames")
+    # )
+  )  
 )
 
 
-#plotOutput("hist")
+
 server <- function(input, output) {
+  
+  selectedData <- reactive({
+    mymat[, c(input$chan1, input$chan2)]
+  })
   
   sliderValues <- reactive({
     
-    # Compose data frame
+    #Compose data frame.
     data.frame(
       Name = c("numx", "numy"),
       
       Value = c(input$numx,
-               input$numy),
+                input$numy),
       
       stringsAsFactors=FALSE)
   })
-
+  
   
   output$plot <- renderPlot({
-   # , xlim = input$numx, ylim = input$numy
-    View(mysample)
-    plot(mysample[1:5000, 1:2], main = "Test", xlim = input$numx, ylim = input$numy)
-
+    
+    #rewrite with selected column numbers
+    #plot(mysample[1:5000, input$chan1:input$chan2], main = "Test", xlim = input$numx, ylim = input$numy)
+    #plot(mysample[, 1:2], main = "Test", xlim = input$numx, ylim = input$numy)
+    #plot(selectedData, main = "Test", xlim = input$numx, ylim = input$numy)
+    plot(selectedData(),xlim = input$numx, ylim = input$numy)
+    
   })
   
-  # output$num_row <- renderText({ 
-  #   paste("The number of entries our sample consists of is: ", nrow(mysample))
-  # })
-  # 
-  # output$num_col <- renderText({ 
-  #   paste("The number of available channels is:", ncol(mysample))
-  # })
-  # 
-  # output$channels <- renderText({ 
-  #   paste("The names of available channels are:", names(mymat))
-  # })
-  # 
+  output$hist <- renderPlot({
+    
+    hist(mymat$FCSA)
+    
+  })
+  
   # output$newnames <- renderText({ 
   #   paste("Choose new names for the channels.")
   # })
 }
 
 shinyApp(ui = ui, server = server)
-
-##################################
-# PROBLEMS
-##################################
-
-# How to select different channels? Assign column names to respective numbers?
-# Write cases: if I choose channel A, then I will work with such and such columns
