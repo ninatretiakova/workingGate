@@ -26,6 +26,7 @@ E <- exprs(mydata)
 
 #Coerce an object into a data frame.
 
+#Force the data into data frame.
 mymat <- as.data.frame(E) 
 
 colnames(mymat)
